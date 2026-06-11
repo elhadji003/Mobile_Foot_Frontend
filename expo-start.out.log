@@ -1,0 +1,11 @@
+
+> frontend@1.0.0 start
+> expo start --offline --port 8083
+
+env: load .env
+env: export EXPO_PUBLIC_API_URL
+Networking has been disabled
+Starting project at C:\Users\L_Piod\Desktop\Mobile\Frontend
+Starting Metro Bundler
+Waiting on http://localhost:8083
+Logs for your project will appear below.
