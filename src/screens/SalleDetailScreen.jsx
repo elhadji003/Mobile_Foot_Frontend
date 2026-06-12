@@ -7,16 +7,19 @@ import {
   Alert,
   ScrollView,
   Linking,
+  Dimensions,
 } from "react-native";
 import { useRoute, useNavigation } from "@react-navigation/native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useGetSalleByIdQuery } from "../backend/features/salle/salleApi";
 import { useCreateReservationMutation } from "../backend/features/reservation/reservationApi";
 import { FormatDateFR } from "../components/FormatDateFr";
-import { SafeAreaView } from "react-native-safe-area-context";
 import SalleMapScreen from "./SalleMapScreen";
 import HeaderBackTitle from "../components/HeaderBackTitle";
 import FootballLoader from "../components/FootballLoader";
+
+const { width } = Dimensions.get("window");
 
 export default function SalleDetailScreen() {
   const { params } = useRoute();
@@ -24,9 +27,7 @@ export default function SalleDetailScreen() {
   const { salleId } = params;
 
   const { data: salle, isLoading } = useGetSalleByIdQuery(salleId);
-
-  const [createReservation, { isLoading: reserving }] =
-    useCreateReservationMutation();
+  const [createReservation, { isLoading: reserving }] = useCreateReservationMutation();
 
   const creneauxList = salle?.creneaux ?? [];
 
@@ -38,6 +39,18 @@ export default function SalleDetailScreen() {
     );
   }
 
+  // Sécurité pour éviter le crash si la salle n'est pas trouvée après le chargement
+  if (!salle) {
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <HeaderBackTitle title="Détail du Terrain" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Impossible de charger les informations du terrain.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const handleReserve = async (creneauId) => {
     try {
       await createReservation({
@@ -45,155 +58,277 @@ export default function SalleDetailScreen() {
         creneau: creneauId,
       }).unwrap();
 
-      Alert.alert("Succès", "Réservation confirmée");
+      Alert.alert("Succès 🎉", "Votre réservation a été confirmée avec succès !");
       navigation.goBack();
     } catch (err) {
       Alert.alert(
         "Erreur",
-        err?.data?.non_field_errors?.[0] || "Créneau indisponible",
+        err?.data?.non_field_errors?.[0] || "Ce créneau n'est plus disponible.",
       );
     }
   };
 
+  const makeCall = async () => {
+    if (!salle?.telephone) return;
+    const url = `tel:${salle.telephone}`;
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert("Erreur", "Votre appareil ne permet pas de passer des appels directement.");
+    }
+  };
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f5f6fa" }}>
-      <HeaderBackTitle title={"Detail du Terrain"} />
-      <ScrollView contentContainerStyle={styles.container}>
-        <SalleMapScreen salle={salle} />
-        <Text style={styles.title}>{salle.nom}</Text>
-        <Text style={styles.adresse}>{salle.adresse}</Text>
-        <Text>Prix</Text>
-        <Text style={styles.prix}>{salle.prix} FCFA</Text>
-        <Text
-          style={styles.telephone}
-          onPress={async () => {
-            const url = `tel:${salle.telephone}`;
-            const supported = await Linking.canOpenURL(url);
-            if (supported) {
-              Linking.openURL(url);
-            } else {
-              Alert.alert("Erreur", "Impossible de passer l'appel");
-            }
-          }}
-        >
-          {salle.telephone}
-        </Text>
-        <Text style={styles.subtitle}>Créneaux disponibles</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <HeaderBackTitle title="Détail du Terrain" />
+      
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
+        {/* Section Carte / Visuel */}
+        <View style={styles.mapWrapper}>
+          <SalleMapScreen salle={salle} />
+        </View>
 
-        {creneauxList.length === 0 ? (
-          <Text style={styles.empty}>Aucun créneau disponible</Text>
-        ) : (
-          creneauxList.map((item) => (
-            <View key={item.id} style={styles.card}>
-              <Text style={styles.date}>{FormatDateFR(item.date)}</Text>
-              <Text style={styles.time}>
-                {item.heure_debut} - {item.heure_fin}
-              </Text>
+        {/* Section Informations Principales */}
+        <View style={styles.infoSection}>
+          <Text style={styles.title}>{salle?.nom}</Text>
+          
+          <View style={styles.locationContainer}>
+            <Text style={styles.pinIcon}>📍</Text>
+            <Text style={styles.adresse}>{salle?.adresse}</Text>
+          </View>
 
-              <TouchableOpacity
-                style={[styles.button, !item.is_active && styles.disabled]} // Gris si PAS actif
-                disabled={!item.is_active || reserving} // Bloqué si PAS actif
-                onPress={() => handleReserve(item.id)}
-              >
-                <Text style={styles.buttonText}>
-                  {item.is_active ? "Réserver" : "Déjà réservé"}
-                </Text>
-              </TouchableOpacity>
+          <View style={styles.priceBadge}>
+            <Text style={styles.prix}>{salle?.prix ? `${salle.prix} FCFA` : "Tarif non spécifié"}</Text>
+          </View>
+
+          {/* Bouton d'action Contact rapide */}
+          {salle?.telephone && (
+            <TouchableOpacity style={styles.phoneButton} onPress={makeCall}>
+              <Text style={styles.phoneIcon}>📞</Text>
+              <Text style={styles.phoneText}>Contacter le terrain ({salle.telephone})</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Divider />
+
+        {/* Section Créneaux */}
+        <View style={styles.slotsSection}>
+          <Text style={styles.subtitle}>📅 Créneaux disponibles</Text>
+
+          {creneauxList.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Aucun créneau disponible pour le moment.</Text>
             </View>
-          ))
-        )}
+          ) : (
+            creneauxList.map((item) => (
+              <View key={item.id} style={styles.card}>
+                <View style={styles.cardInfo}>
+                  <Text style={styles.date}>{FormatDateFR(item.date)}</Text>
+                  <Text style={styles.time}>
+                    🕒 {item.heure_debut} - {item.heure_fin}
+                  </Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.button, !item.is_active && styles.disabled]}
+                  disabled={!item.is_active || reserving}
+                  onPress={() => handleReserve(item.id)}
+                >
+                  <Text style={styles.buttonText}>
+                    {item.is_active ? "Réserver" : "Complet"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    // paddingTop: 30, // 🔹 espace au-dessus du header / notch
-    paddingBottom: 30,
-  },
+// Composant de séparation visuelle épuré
+const Divider = () => <View style={styles.divider} />;
 
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  container: {
+    paddingBottom: 40,
+  },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 30,
+    padding: 20,
   },
-
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
+  errorContainer: {
+    flex: 1,
+    backgroundColor: "#f8f9fa",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#6c757d",
     textAlign: "center",
-    paddingHorizontal: 16,
   },
-
+  mapWrapper: {
+    width: width,
+    height: 220,
+    backgroundColor: "#e9ecef",
+    overflow: "hidden",
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+  infoSection: {
+    padding: 20,
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#212529",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  locationContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  pinIcon: {
+    marginRight: 6,
+    fontSize: 14,
+  },
   adresse: {
     fontSize: 14,
-    color: "#666",
+    color: "#6c757d",
     textAlign: "center",
-    marginBottom: 6,
+    lineHeight: 20,
   },
-
+  priceBadge: {
+    backgroundColor: "#e7f0ff",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+    marginBottom: 20,
+  },
   prix: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#1552e0ff",
-    textAlign: "center",
-    marginBottom: 20,
+    color: "#1552e0",
   },
-
-  telephone: {
+  phoneButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#e1e4e8",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    width: "100%",
+    justifyContent: "center",
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  phoneIcon: {
+    marginRight: 10,
     fontSize: 16,
+  },
+  phoneText: {
+    fontSize: 14,
     fontWeight: "600",
-    color: "#1552e0ff", // bleu comme tes boutons / prix
-    textAlign: "center",
-    marginBottom: 12,
-    letterSpacing: 0.5, // un peu d'espacement pour la lisibilité
+    color: "#1552e0",
   },
-
+  divider: {
+    height: 1,
+    backgroundColor: "#edd",
+    opacity: 0.1,
+    marginHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: "#dee2e6",
+  },
+  slotsSection: {
+    padding: 20,
+  },
   subtitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "700",
-    marginBottom: 10,
+    color: "#212529",
+    marginBottom: 16,
   },
-
   card: {
     backgroundColor: "#fff",
-    padding: 14,
-    borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 16,
     marginBottom: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-
+  cardInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
   date: {
+    fontSize: 15,
     fontWeight: "700",
+    color: "#212529",
     marginBottom: 4,
   },
-
   time: {
-    color: "#555",
-    marginBottom: 10,
+    fontSize: 13,
+    color: "#495057",
+    fontWeight: "500",
   },
-
   button: {
-    backgroundColor: "#1552e0ff",
-    paddingVertical: 12,
+    backgroundColor: "#1552e0",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     borderRadius: 10,
+    minWidth: 100,
     alignItems: "center",
   },
-
   disabled: {
-    backgroundColor: "#aaa",
+    backgroundColor: "#ced4da",
   },
-
   buttonText: {
     color: "#fff",
     fontWeight: "700",
+    fontSize: 14,
   },
-
-  empty: {
+  emptyContainer: {
+    backgroundColor: "#fff",
+    padding: 30,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+    borderStyle: "dashed",
+  },
+  emptyText: {
     textAlign: "center",
-    color: "#888",
-    marginTop: 30,
+    color: "#6c757d",
+    fontSize: 14,
   },
 });

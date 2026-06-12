@@ -13,14 +13,19 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "Football",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.leuz_07.frontend"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -29,6 +34,9 @@
       "eas": {
         "projectId": "8119dad1-6fcf-43b3-8c13-a9a7b545288a"
       }
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
