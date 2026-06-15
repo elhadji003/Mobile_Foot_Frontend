@@ -22,8 +22,8 @@ const rootReducer = combineReducers({
   [userApi.reducerPath]: userApi.reducer,
   [salleApi.reducerPath]: salleApi.reducer,
   [creneauApi.reducerPath]: creneauApi.reducer,
-  [reservationApi.reducerPath]: creneauApi.reducer,
-  [notificationApi.reducerPath]: notificationApi.reducer
+  [reservationApi.reducerPath]: reservationApi.reducer,
+  [notificationApi.reducerPath]: notificationApi.reducer,
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

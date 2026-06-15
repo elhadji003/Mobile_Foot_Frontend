@@ -41,7 +41,7 @@ const LoginScreen = () => {
     try {
       const res = await login({ email, password }).unwrap();
       dispatch(setCredentials(res));
-      console.log("role :", res?.role);
+      console.log("role :", res.user.role);
     } catch (err) {
       const message = "data" in err ? err.data?.detail : err.message;
       Alert.alert("Erreur", message || "Identifiants incorrects");

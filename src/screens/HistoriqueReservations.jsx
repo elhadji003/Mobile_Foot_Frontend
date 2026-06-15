@@ -4,73 +4,170 @@ import {
   StyleSheet,
   Text,
   View,
-  TouchableOpacity,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import HeaderBackTitle from "../components/HeaderBackTitle";
+import { useGetReservationsQuery } from "../backend/features/reservation/reservationApi";
 
-/* ================== DATA SIMULÉE ================== */
-const reservations = [
-  {
-    id: 1,
-    terrain: "Terrain Almadies",
-    date: "12 Jan 2026",
-    heure: "18:00 - 19:00",
-    prix: "5 000 FCFA",
-    status: "payé",
-  },
-  {
-    id: 2,
-    terrain: "Terrain Yoff",
-    date: "08 Jan 2026",
-    heure: "20:00 - 21:00",
-    prix: "6 000 FCFA",
-    status: "annulé",
-  },
-  {
-    id: 3,
-    terrain: "Terrain Parcelles",
-    date: "02 Jan 2026",
-    heure: "17:00 - 18:00",
-    prix: "4 500 FCFA",
-    status: "en attente",
-  },
-];
+const statusConfig = {
+  confirmed: { label: "Confirmée", color: "#2ecc71", bg: "#eafaf1" },
+  pending: { label: "En attente", color: "#f39c12", bg: "#fef9e7" },
+  cancelled: { label: "Annulée", color: "#e74c3c", bg: "#fdedec" },
+};
 
 export default function HistoriqueReservations() {
+  const { data, isLoading, error } = useGetReservationsQuery();
+
+  const reservations = data?.results ?? [];
+
+  const confirmed = reservations.filter((r) => r.status === "confirmed").length;
+  const pending = reservations.filter((r) => r.status === "pending").length;
+  const cancelled = reservations.filter((r) => r.status === "cancelled").length;
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <HeaderBackTitle title="Mes Réservations" />
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color="#1552e0" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <HeaderBackTitle title="Mes Réservations" />
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>
+            ⚠️ Impossible de charger vos réservations.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
-      <HeaderBackTitle title="Historique" />
+      <HeaderBackTitle title="Mes Réservations" />
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>Mes réservations</Text>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, { borderTopColor: "#2ecc71" }]}>
+            <Text style={[styles.statNumber, { color: "#2ecc71" }]}>
+              {confirmed}
+            </Text>
+            <Text style={styles.statLabel}>Confirmée(s)</Text>
+          </View>
+          <View style={[styles.statCard, { borderTopColor: "#f39c12" }]}>
+            <Text style={[styles.statNumber, { color: "#f39c12" }]}>
+              {pending}
+            </Text>
+            <Text style={styles.statLabel}>En attente</Text>
+          </View>
+          <View style={[styles.statCard, { borderTopColor: "#e74c3c" }]}>
+            <Text style={[styles.statNumber, { color: "#e74c3c" }]}>
+              {cancelled}
+            </Text>
+            <Text style={styles.statLabel}>Annulée(s)</Text>
+          </View>
+        </View>
 
-        {reservations.map((item) => (
-          <TouchableOpacity key={item.id} style={styles.card}>
-            <View>
-              <Text style={styles.terrain}>{item.terrain}</Text>
-              <Text style={styles.info}>
-                {item.date} • {item.heure}
-              </Text>
-              <Text style={styles.price}>{item.prix}</Text>
-            </View>
+        {/* Titre section */}
+        <Text style={styles.sectionTitle}>
+          {reservations.length} réservation(s)
+        </Text>
 
-            <View style={styles.right}>
-              <Text
-                style={[
-                  styles.status,
-                  item.status === "payé" && styles.paid,
-                  item.status === "annulé" && styles.cancelled,
-                  item.status === "en attente" && styles.pending,
-                ]}
+        {/* Liste */}
+        {reservations.length === 0 ? (
+          <View style={styles.centered}>
+            <Text style={styles.emptyText}>
+              Aucune réservation pour le moment.
+            </Text>
+          </View>
+        ) : (
+          reservations.map((res) => {
+            const config = statusConfig[res.status] ?? {
+              label: res.status,
+              color: "#999",
+              bg: "#f5f5f5",
+            };
+
+            const heureDebut = res.creneau_details?.heure_debut?.substring(
+              0,
+              5,
+            );
+            const heureFin = res.creneau_details?.heure_fin?.substring(0, 5);
+            const date = res.creneau_details?.date
+              ? new Date(res.creneau_details.date).toLocaleDateString("fr-FR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })
+              : null;
+
+            return (
+              <View
+                key={res.id}
+                style={[styles.card, { borderTopColor: config.color }]}
               >
-                {item.status}
-              </Text>
-              <Ionicons name="chevron-forward" size={20} color="#999" />
-            </View>
-          </TouchableOpacity>
-        ))}
+                {/* En-tête carte */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.iconBox}>
+                    <Ionicons
+                      name="football-outline"
+                      size={20}
+                      color="#1552e0"
+                    />
+                  </View>
+                  <Text style={styles.terrainName}>Terrain #{res.salle}</Text>
+                  <View style={[styles.badge, { backgroundColor: config.bg }]}>
+                    <Text style={[styles.badgeText, { color: config.color }]}>
+                      {config.label}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Détails */}
+                <View style={styles.cardBody}>
+                  {date && (
+                    <View style={styles.infoRow}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={14}
+                        color="#999"
+                      />
+                      <Text style={styles.infoText}>{date}</Text>
+                    </View>
+                  )}
+
+                  {heureDebut && (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="time-outline" size={14} color="#999" />
+                      <Text style={styles.infoText}>
+                        {heureDebut} – {heureFin}
+                      </Text>
+                    </View>
+                  )}
+
+                  {res.creneau_details?.nombre_joueur && (
+                    <View style={styles.infoRow}>
+                      <Ionicons name="people-outline" size={14} color="#999" />
+                      <Text style={styles.infoText}>
+                        {res.creneau_details.nombre_joueur} joueurs
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            );
+          })
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -83,57 +180,111 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 32,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 32,
+  },
+  errorText: {
+    fontSize: 15,
+    color: "#e74c3c",
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 15,
+    color: "#999",
+    fontStyle: "italic",
+    textAlign: "center",
+  },
+  statsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderTopWidth: 3,
+    elevation: 1,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+  },
+  statNumber: {
+    fontSize: 22,
+    fontWeight: "700",
+  },
+  statLabel: {
+    fontSize: 11,
+    color: "#999",
+    marginTop: 2,
+    textAlign: "center",
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "600",
-    marginBottom: 16,
-    color: "#333",
+    color: "#888",
+    marginBottom: 12,
   },
   card: {
     backgroundColor: "#fff",
     borderRadius: 14,
-    padding: 16,
+    borderTopWidth: 3,
+    padding: 14,
     marginBottom: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
     elevation: 2,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowRadius: 6,
   },
-  terrain: {
-    fontSize: 16,
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 10,
+  },
+  iconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "#eef2ff",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  terrainName: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: "600",
     color: "#222",
   },
-  info: {
-    fontSize: 14,
-    color: "#666",
-    marginVertical: 4,
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
-  price: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: "#111",
-  },
-  right: {
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-  },
-  status: {
-    fontSize: 13,
+  badgeText: {
+    fontSize: 11,
     fontWeight: "600",
-    textTransform: "capitalize",
-    marginBottom: 8,
   },
-  paid: {
-    color: "#2ecc71",
+  cardBody: {
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: "#f0f0f0",
+    paddingTop: 10,
   },
-  cancelled: {
-    color: "#e74c3c",
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  pending: {
-    color: "#f39c12",
+  infoText: {
+    fontSize: 13,
+    color: "#555",
   },
 });
