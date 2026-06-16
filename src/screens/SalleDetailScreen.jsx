@@ -22,15 +22,39 @@ import FootballLoader from "../components/FootballLoader";
 const { width } = Dimensions.get("window");
 
 export default function SalleDetailScreen() {
-  const { params } = useRoute();
+  // ✅ FIX 1 — Sécuriser l'accès aux params pour éviter un crash si params est undefined
+  const route = useRoute();
   const navigation = useNavigation();
-  const { salleId } = params;
+  const salleId = route?.params?.salleId ?? null;
 
-  const { data: salle, isLoading } = useGetSalleByIdQuery(salleId);
-  const [createReservation, { isLoading: reserving }] = useCreateReservationMutation();
+  // ✅ FIX 2 — Ajouter "skip" pour ne pas lancer la requête si salleId est absent
+  const {
+    data: salle,
+    isLoading,
+    isError,
+  } = useGetSalleByIdQuery(salleId, {
+    skip: !salleId,
+  });
 
+  const [createReservation, { isLoading: reserving }] =
+    useCreateReservationMutation();
+
+  // ✅ FIX 3 — creneauxList sécurisé (déjà bien fait, conservé)
   const creneauxList = salle?.creneaux ?? [];
 
+  // ✅ FIX 4 — Cas où salleId est manquant dans les params de navigation
+  if (!salleId) {
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <HeaderBackTitle title="Détail du Terrain" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>Identifiant du terrain manquant.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Affichage du loader pendant le chargement
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -39,13 +63,29 @@ export default function SalleDetailScreen() {
     );
   }
 
-  // Sécurité pour éviter le crash si la salle n'est pas trouvée après le chargement
+  // ✅ FIX 5 — Gérer le cas d'erreur réseau ou API explicitement
+  if (isError) {
+    return (
+      <SafeAreaView style={styles.errorContainer}>
+        <HeaderBackTitle title="Détail du Terrain" />
+        <View style={styles.center}>
+          <Text style={styles.errorText}>
+            Une erreur est survenue. Vérifiez votre connexion.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Sécurité après le chargement si la salle n'est pas trouvée
   if (!salle) {
     return (
       <SafeAreaView style={styles.errorContainer}>
         <HeaderBackTitle title="Détail du Terrain" />
         <View style={styles.center}>
-          <Text style={styles.errorText}>Impossible de charger les informations du terrain.</Text>
+          <Text style={styles.errorText}>
+            Impossible de charger les informations du terrain.
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -58,7 +98,10 @@ export default function SalleDetailScreen() {
         creneau: creneauId,
       }).unwrap();
 
-      Alert.alert("Succès 🎉", "Votre réservation a été confirmée avec succès !");
+      Alert.alert(
+        "Succès 🎉",
+        "Votre réservation a été confirmée avec succès !",
+      );
       navigation.goBack();
     } catch (err) {
       Alert.alert(
@@ -71,42 +114,59 @@ export default function SalleDetailScreen() {
   const makeCall = async () => {
     if (!salle?.telephone) return;
     const url = `tel:${salle.telephone}`;
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert("Erreur", "Votre appareil ne permet pas de passer des appels directement.");
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert(
+          "Erreur",
+          "Votre appareil ne permet pas de passer des appels directement.",
+        );
+      }
+    } catch (e) {
+      // ✅ FIX 6 — Linking.canOpenURL peut rejeter sur certains Android, on catch l'erreur
+      Alert.alert("Erreur", "Impossible d'ouvrir le téléphone.");
     }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <HeaderBackTitle title="Détail du Terrain" />
-      
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.container}>
-        {/* Section Carte / Visuel */}
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.container}
+      >
+        {/* ✅ FIX 7 — SalleMapScreen protégé dans un try/catch visuel
+            C'est la cause de crash la plus fréquente en APK :
+            react-native-maps plante si les coordonnées sont null/undefined
+            ou si la lib native n'est pas correctement liée dans le build. */}
         <View style={styles.mapWrapper}>
-          <SalleMapScreen salle={salle} />
+          <SafeMapWrapper salle={salle} />
         </View>
 
         {/* Section Informations Principales */}
         <View style={styles.infoSection}>
           <Text style={styles.title}>{salle?.nom}</Text>
-          
+
           <View style={styles.locationContainer}>
             <Text style={styles.pinIcon}>📍</Text>
             <Text style={styles.adresse}>{salle?.adresse}</Text>
           </View>
 
           <View style={styles.priceBadge}>
-            <Text style={styles.prix}>{salle?.prix ? `${salle.prix} FCFA` : "Tarif non spécifié"}</Text>
+            <Text style={styles.prix}>
+              {salle?.prix ? `${salle.prix} FCFA` : "Tarif non spécifié"}
+            </Text>
           </View>
 
-          {/* Bouton d'action Contact rapide */}
           {salle?.telephone && (
             <TouchableOpacity style={styles.phoneButton} onPress={makeCall}>
               <Text style={styles.phoneIcon}>📞</Text>
-              <Text style={styles.phoneText}>Contacter le terrain ({salle.telephone})</Text>
+              <Text style={styles.phoneText}>
+                Contacter le terrain ({salle.telephone})
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -119,7 +179,9 @@ export default function SalleDetailScreen() {
 
           {creneauxList.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Aucun créneau disponible pour le moment.</Text>
+              <Text style={styles.emptyText}>
+                Aucun créneau disponible pour le moment.
+              </Text>
             </View>
           ) : (
             creneauxList.map((item) => (
@@ -147,6 +209,43 @@ export default function SalleDetailScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+// ✅ FIX 7 (suite) — Composant wrapper qui isole le crash de SalleMapScreen
+// Si react-native-maps n'est pas bien configuré dans l'APK,
+// ou si salle.latitude / salle.longitude sont null, ça crash ici.
+// Ce wrapper affiche un fallback au lieu de faire planter toute l'app.
+class SafeMapWrapper extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  // Capture les erreurs de rendu du composant enfant
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, info) {
+    // Tu peux logger l'erreur ici si tu utilises Sentry ou similaire
+    console.warn("[SafeMapWrapper] Erreur dans SalleMapScreen :", error, info);
+  }
+
+  render() {
+    const { salle } = this.props;
+
+    // Si la map a crashé ou si les coordonnées sont absentes, on affiche un fallback
+    if (this.state.hasError || !salle?.latitude || !salle?.longitude) {
+      return (
+        <View style={styles.mapFallback}>
+          <Text style={styles.mapFallbackIcon}>🗺️</Text>
+          <Text style={styles.mapFallbackText}>Carte non disponible</Text>
+        </View>
+      );
+    }
+
+    return <SalleMapScreen salle={salle} />;
+  }
 }
 
 // Composant de séparation visuelle épuré
@@ -187,6 +286,21 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
+  },
+  // ✅ Style pour le fallback de la carte
+  mapFallback: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#e9ecef",
+  },
+  mapFallbackIcon: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  mapFallbackText: {
+    fontSize: 14,
+    color: "#6c757d",
   },
   infoSection: {
     padding: 20,

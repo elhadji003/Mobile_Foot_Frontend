@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import HeaderBackTitle from "../components/HeaderBackTitle";
 import { useGetReservationsQuery } from "../backend/features/reservation/reservationApi";
+import FootballLoader from "../components/FootballLoader";
 
 const statusConfig = {
   confirmed: { label: "Confirmée", color: "#2ecc71", bg: "#eafaf1" },
@@ -43,12 +44,9 @@ export default function ReservationScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
-        <HeaderBackTitle title="Mes Réservations" />
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#1552e0" />
-        </View>
-      </SafeAreaView>
+      <View style={styles.center}>
+        <FootballLoader />
+      </View>
     );
   }
 
@@ -232,6 +230,12 @@ const styles = StyleSheet.create({
   content: {
     padding: 16,
     paddingBottom: 32,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
   centered: {
     flex: 1,

@@ -14,7 +14,7 @@ export default function FootballLoader({ size = 50 }) {
         duration: 1200,
         easing: Easing.linear,
         useNativeDriver: true,
-      })
+      }),
     ).start();
 
     // Bounce (haut / bas)
@@ -30,7 +30,7 @@ export default function FootballLoader({ size = 50 }) {
           duration: 400,
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
   }, []);
 
