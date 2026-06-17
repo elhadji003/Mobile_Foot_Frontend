@@ -1,66 +1,34 @@
 import React from "react";
 import {
-  StyleSheet,
   View,
-  Linking,
-  Platform,
+  Text,
   TouchableOpacity,
-  Text, // <--- Il manquait cet import !
+  StyleSheet,
+  Linking,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
 
 export default function SalleMapScreen({ salle }) {
-  // On définit la fonction à l'intérieur pour accéder à { salle }
+  const lat = Number(salle?.latitude);
+  const lng = Number(salle?.longitude);
+  const isValid = Number.isFinite(lat) && Number.isFinite(lng);
+
   const openMap = () => {
-    if (!salle?.latitude || !salle?.longitude) return;
-
-    const lat = salle.latitude;
-    const lng = salle.longitude;
-    const label = salle.nom;
-
-    const url = Platform.select({
-      ios: `maps:0,0?q=${label}@${lat},${lng}`,
-      android: `geo:0,0?q=${lat},${lng}(${label})`,
-    });
-
-    Linking.canOpenURL(url).then((supported) => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        const browserUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-        Linking.openURL(browserUrl);
-      }
-    });
+    if (!isValid) return;
+    Linking.openURL(`https://www.google.com/maps?q=${lat},${lng}`);
   };
 
   return (
     <TouchableOpacity
-      style={styles.mapContainer}
+      style={[styles.container, !isValid && styles.disabled]}
       onPress={openMap}
+      disabled={!isValid}
       activeOpacity={0.8}
     >
-      <MapView
-        pointerEvents="none"
-        style={styles.map}
-        initialRegion={{
-          latitude: parseFloat(salle.latitude),
-          longitude: parseFloat(salle.longitude),
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        }}
-      >
-        <Marker
-          coordinate={{
-            latitude: parseFloat(salle.latitude),
-            longitude: parseFloat(salle.longitude),
-          }}
-          title={salle.nom}
-        />
-      </MapView>
-
-      <View style={styles.mapOverlay}>
-        <Text style={styles.mapOverlayText}>
-          Cliquez pour ouvrir l'itinéraire
+      <Text style={styles.icon}>🗺️</Text>
+      <View>
+        <Text style={styles.title}>Voir sur la carte</Text>
+        <Text style={styles.sub}>
+          {isValid ? "Ouvre Google Maps" : "Localisation non disponible"}
         </Text>
       </View>
     </TouchableOpacity>
@@ -68,29 +36,16 @@ export default function SalleMapScreen({ salle }) {
 }
 
 const styles = StyleSheet.create({
-  mapContainer: {
-    height: 200,
-    width: "100%",
-    borderRadius: 15,
-    overflow: "hidden",
-    marginVertical: 15,
-    backgroundColor: "#ddd",
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+    backgroundColor: "#1552e0",
   },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  mapOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 8,
-  },
-  mapOverlayText: {
-    color: "white",
-    fontSize: 12,
-    textAlign: "center",
-    fontWeight: "600",
-  },
+  disabled: { backgroundColor: "#ced4da" },
+  icon: { fontSize: 32 },
+  title: { fontSize: 16, fontWeight: "700", color: "#fff" },
+  sub: { fontSize: 12, color: "rgba(255,255,255,0.8)", marginTop: 2 },
 });

@@ -22,12 +22,10 @@ import FootballLoader from "../components/FootballLoader";
 const { width } = Dimensions.get("window");
 
 export default function SalleDetailScreen() {
-  // ✅ FIX 1 — Sécuriser l'accès aux params pour éviter un crash si params est undefined
   const route = useRoute();
   const navigation = useNavigation();
   const salleId = route?.params?.salleId ?? null;
 
-  // ✅ FIX 2 — Ajouter "skip" pour ne pas lancer la requête si salleId est absent
   const {
     data: salle,
     isLoading,
@@ -38,11 +36,8 @@ export default function SalleDetailScreen() {
 
   const [createReservation, { isLoading: reserving }] =
     useCreateReservationMutation();
-
-  // ✅ FIX 3 — creneauxList sécurisé (déjà bien fait, conservé)
   const creneauxList = salle?.creneaux ?? [];
 
-  // ✅ FIX 4 — Cas où salleId est manquant dans les params de navigation
   if (!salleId) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -54,7 +49,6 @@ export default function SalleDetailScreen() {
     );
   }
 
-  // Affichage du loader pendant le chargement
   if (isLoading) {
     return (
       <View style={styles.center}>
@@ -63,7 +57,6 @@ export default function SalleDetailScreen() {
     );
   }
 
-  // ✅ FIX 5 — Gérer le cas d'erreur réseau ou API explicitement
   if (isError) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -77,7 +70,6 @@ export default function SalleDetailScreen() {
     );
   }
 
-  // Sécurité après le chargement si la salle n'est pas trouvée
   if (!salle) {
     return (
       <SafeAreaView style={styles.errorContainer}>
@@ -93,11 +85,7 @@ export default function SalleDetailScreen() {
 
   const handleReserve = async (creneauId) => {
     try {
-      await createReservation({
-        salle: salleId,
-        creneau: creneauId,
-      }).unwrap();
-
+      await createReservation({ salle: salleId, creneau: creneauId }).unwrap();
       Alert.alert(
         "Succès 🎉",
         "Votre réservation a été confirmée avec succès !",
@@ -125,7 +113,6 @@ export default function SalleDetailScreen() {
         );
       }
     } catch (e) {
-      // ✅ FIX 6 — Linking.canOpenURL peut rejeter sur certains Android, on catch l'erreur
       Alert.alert("Erreur", "Impossible d'ouvrir le téléphone.");
     }
   };
@@ -133,34 +120,25 @@ export default function SalleDetailScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <HeaderBackTitle title="Détail du Terrain" />
-
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.container}
       >
-        {/* ✅ FIX 7 — SalleMapScreen protégé dans un try/catch visuel
-            C'est la cause de crash la plus fréquente en APK :
-            react-native-maps plante si les coordonnées sont null/undefined
-            ou si la lib native n'est pas correctement liée dans le build. */}
         <View style={styles.mapWrapper}>
-          <SafeMapWrapper salle={salle} />
+          <SalleMapScreen salle={salle} />
         </View>
 
-        {/* Section Informations Principales */}
         <View style={styles.infoSection}>
           <Text style={styles.title}>{salle?.nom}</Text>
-
           <View style={styles.locationContainer}>
             <Text style={styles.pinIcon}>📍</Text>
             <Text style={styles.adresse}>{salle?.adresse}</Text>
           </View>
-
           <View style={styles.priceBadge}>
             <Text style={styles.prix}>
               {salle?.prix ? `${salle.prix} FCFA` : "Tarif non spécifié"}
             </Text>
           </View>
-
           {salle?.telephone && (
             <TouchableOpacity style={styles.phoneButton} onPress={makeCall}>
               <Text style={styles.phoneIcon}>📞</Text>
@@ -173,10 +151,8 @@ export default function SalleDetailScreen() {
 
         <Divider />
 
-        {/* Section Créneaux */}
         <View style={styles.slotsSection}>
           <Text style={styles.subtitle}>📅 Créneaux disponibles</Text>
-
           {creneauxList.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
@@ -192,7 +168,6 @@ export default function SalleDetailScreen() {
                     🕒 {item.heure_debut} - {item.heure_fin}
                   </Text>
                 </View>
-
                 <TouchableOpacity
                   style={[styles.button, !item.is_active && styles.disabled]}
                   disabled={!item.is_active || reserving}
@@ -211,69 +186,19 @@ export default function SalleDetailScreen() {
   );
 }
 
-// ✅ FIX 7 (suite) — Composant wrapper qui isole le crash de SalleMapScreen
-// Si react-native-maps n'est pas bien configuré dans l'APK,
-// ou si salle.latitude / salle.longitude sont null, ça crash ici.
-// Ce wrapper affiche un fallback au lieu de faire planter toute l'app.
-class SafeMapWrapper extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-  }
-
-  // Capture les erreurs de rendu du composant enfant
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-
-  componentDidCatch(error, info) {
-    // Tu peux logger l'erreur ici si tu utilises Sentry ou similaire
-    console.warn("[SafeMapWrapper] Erreur dans SalleMapScreen :", error, info);
-  }
-
-  render() {
-    const { salle } = this.props;
-
-    // Si la map a crashé ou si les coordonnées sont absentes, on affiche un fallback
-    if (this.state.hasError || !salle?.latitude || !salle?.longitude) {
-      return (
-        <View style={styles.mapFallback}>
-          <Text style={styles.mapFallbackIcon}>🗺️</Text>
-          <Text style={styles.mapFallbackText}>Carte non disponible</Text>
-        </View>
-      );
-    }
-
-    return <SalleMapScreen salle={salle} />;
-  }
-}
-
-// Composant de séparation visuelle épuré
 const Divider = () => <View style={styles.divider} />;
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  container: {
-    paddingBottom: 40,
-  },
+  safeArea: { flex: 1, backgroundColor: "#f8f9fa" },
+  container: { paddingBottom: 40 },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
-  errorContainer: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-  errorText: {
-    fontSize: 16,
-    color: "#6c757d",
-    textAlign: "center",
-  },
+  errorContainer: { flex: 1, backgroundColor: "#f8f9fa" },
+  errorText: { fontSize: 16, color: "#6c757d", textAlign: "center" },
   mapWrapper: {
     width: width,
     height: 220,
@@ -287,25 +212,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
   },
-  // ✅ Style pour le fallback de la carte
-  mapFallback: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#e9ecef",
-  },
-  mapFallbackIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  mapFallbackText: {
-    fontSize: 14,
-    color: "#6c757d",
-  },
-  infoSection: {
-    padding: 20,
-    alignItems: "center",
-  },
+  infoSection: { padding: 20, alignItems: "center" },
   title: {
     fontSize: 24,
     fontWeight: "800",
@@ -320,10 +227,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 16,
   },
-  pinIcon: {
-    marginRight: 6,
-    fontSize: 14,
-  },
+  pinIcon: { marginRight: 6, fontSize: 14 },
   adresse: {
     fontSize: 14,
     color: "#6c757d",
@@ -337,11 +241,7 @@ const styles = StyleSheet.create({
     borderRadius: 50,
     marginBottom: 20,
   },
-  prix: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#1552e0",
-  },
+  prix: { fontSize: 16, fontWeight: "700", color: "#1552e0" },
   phoneButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -359,26 +259,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
   },
-  phoneIcon: {
-    marginRight: 10,
-    fontSize: 16,
-  },
-  phoneText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1552e0",
-  },
+  phoneIcon: { marginRight: 10, fontSize: 16 },
+  phoneText: { fontSize: 14, fontWeight: "600", color: "#1552e0" },
   divider: {
     height: 1,
-    backgroundColor: "#edd",
-    opacity: 0.1,
     marginHorizontal: 20,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: "#dee2e6",
   },
-  slotsSection: {
-    padding: 20,
-  },
+  slotsSection: { padding: 20 },
   subtitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -399,21 +288,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
   },
-  cardInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  date: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#212529",
-    marginBottom: 4,
-  },
-  time: {
-    fontSize: 13,
-    color: "#495057",
-    fontWeight: "500",
-  },
+  cardInfo: { flex: 1, marginRight: 10 },
+  date: { fontSize: 15, fontWeight: "700", color: "#212529", marginBottom: 4 },
+  time: { fontSize: 13, color: "#495057", fontWeight: "500" },
   button: {
     backgroundColor: "#1552e0",
     paddingVertical: 10,
@@ -422,14 +299,8 @@ const styles = StyleSheet.create({
     minWidth: 100,
     alignItems: "center",
   },
-  disabled: {
-    backgroundColor: "#ced4da",
-  },
-  buttonText: {
-    color: "#fff",
-    fontWeight: "700",
-    fontSize: 14,
-  },
+  disabled: { backgroundColor: "#ced4da" },
+  buttonText: { color: "#fff", fontWeight: "700", fontSize: 14 },
   emptyContainer: {
     backgroundColor: "#fff",
     padding: 30,
@@ -440,9 +311,5 @@ const styles = StyleSheet.create({
     borderColor: "#e9ecef",
     borderStyle: "dashed",
   },
-  emptyText: {
-    textAlign: "center",
-    color: "#6c757d",
-    fontSize: 14,
-  },
+  emptyText: { textAlign: "center", color: "#6c757d", fontSize: 14 },
 });
